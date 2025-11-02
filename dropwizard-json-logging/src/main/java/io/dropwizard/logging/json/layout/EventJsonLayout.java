@@ -5,12 +5,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import io.dropwizard.logging.json.EventAttribute;
 import org.jspecify.annotations.Nullable;
 
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.slf4j.event.KeyValuePair;
 
 /**
  * Builds JSON messages from logging events of the type {@link ILoggingEvent}.
@@ -29,11 +28,13 @@ public class EventJsonLayout extends AbstractJsonLayout<ILoggingEvent> {
 
     private Set<String> includesMdcKeys;
     private final boolean flattenMdc;
+    private final boolean flattenKeyValuePairs;
+    private Set<String> includesKeyValueKeys;
 
     public EventJsonLayout(JsonFormatter jsonFormatter, TimestampFormatter timestampFormatter,
                            ThrowableHandlingConverter throwableProxyConverter, Set<EventAttribute> includes,
                            Map<String, String> customFieldNames, Map<String, Object> additionalFields,
-                           Set<String> includesMdcKeys, boolean flattenMdc) {
+                           Set<String> includesMdcKeys, boolean flattenMdc, Set<String> includesKeyValueKeys, boolean flattenKeyValuePairs) {
         super(jsonFormatter);
         this.timestampFormatter = timestampFormatter;
         this.additionalFields = new HashMap<>(additionalFields);
@@ -42,6 +43,8 @@ public class EventJsonLayout extends AbstractJsonLayout<ILoggingEvent> {
         this.includes = new HashSet<>(includes);
         this.includesMdcKeys = new HashSet<>(includesMdcKeys);
         this.flattenMdc = flattenMdc;
+        this.flattenKeyValuePairs = flattenKeyValuePairs;
+        this.includesKeyValueKeys = new HashSet<>(includesKeyValueKeys);
     }
 
     @Override
@@ -75,6 +78,18 @@ public class EventJsonLayout extends AbstractJsonLayout<ILoggingEvent> {
             filterMdc(event.getMDCPropertyMap()).forEach((k,v) -> mapBuilder.add(k, includeMdc, v));
         } else {
             mapBuilder.addMap("mdc", includeMdc, () -> filterMdc(event.getMDCPropertyMap()));
+        }
+
+        final boolean includeKeyValuePairs = isIncluded(EventAttribute.KEY_VALUE_PAIRS);
+        if (flattenKeyValuePairs) {
+            filterKeyValuePairs(event.getKeyValuePairs()).forEach(kvp -> {
+                var pairValue = kvp.value!=null?kvp.value.toString():null;
+                mapBuilder.add(kvp.key, includeKeyValuePairs, pairValue);
+            });
+        } else {
+            Supplier<Map<String, ?>> pairSupplier = () -> filterKeyValuePairs(event.getKeyValuePairs()).stream().collect(Collectors.toMap(kvp -> kvp.key, kvp -> kvp.value, (v1, v2) -> v2));
+            mapBuilder.addMap("keyValuePairs", includeKeyValuePairs,
+                pairSupplier);
         }
 
         final boolean includeCallerData = isIncluded(EventAttribute.CALLER_DATA);
@@ -127,5 +142,22 @@ public class EventJsonLayout extends AbstractJsonLayout<ILoggingEvent> {
 
     public void setIncludesMdcKeys(Set<String> includesMdcKeys) {
         this.includesMdcKeys = new HashSet<>(includesMdcKeys);
+    }
+
+    public Set<String> getIncludesKeyValueKeys() {
+        return includesKeyValueKeys;
+    }
+
+    public void setIncludesKeyValueKeys(Set<String> includesKeyValueKeys) {
+        this.includesKeyValueKeys = new HashSet<>(includesKeyValueKeys);
+    }
+
+    private List<KeyValuePair> filterKeyValuePairs(List<KeyValuePair> keyValuePairs) {
+        if (includesKeyValueKeys.isEmpty()) {
+            return keyValuePairs;
+        }
+        return keyValuePairs.stream()
+            .filter(kvp -> includesKeyValueKeys.contains(kvp.key))
+            .collect(Collectors.toList());
     }
 }

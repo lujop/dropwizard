@@ -52,6 +52,8 @@ public class EventJsonLayoutBaseFactory extends AbstractJsonLayoutBaseFactory<IL
 
     private Set<String> includesMdcKeys = Collections.emptySet();
     private boolean flattenMdc = false;
+    private boolean flattenKeyValuePairs = false;
+    private Set<String> includesKeyValueKeys = Collections.emptySet();
 
     @Nullable
     private ExceptionFormat exceptionFormat;
@@ -86,6 +88,26 @@ public class EventJsonLayoutBaseFactory extends AbstractJsonLayoutBaseFactory<IL
         this.flattenMdc = flattenMdc;
     }
 
+    @JsonProperty
+    public boolean isFlattenKeyValuePairs() {
+        return flattenKeyValuePairs;
+    }
+
+    @JsonProperty
+    public void setFlattenKeyValuePairs(boolean flattenKeyValuePairs) {
+        this.flattenKeyValuePairs = flattenKeyValuePairs;
+    }
+
+    @JsonProperty
+    public Set<String> getIncludesKeyValueKeys() {
+        return includesKeyValueKeys;
+    }
+
+    @JsonProperty
+    public void setIncludesKeyValueKeys(Set<String> includesKeyValueKeys) {
+        this.includesKeyValueKeys = includesKeyValueKeys;
+    }
+
     /**
      * @since 2.0
      */
@@ -107,7 +129,7 @@ public class EventJsonLayoutBaseFactory extends AbstractJsonLayoutBaseFactory<IL
     public LayoutBase<ILoggingEvent> build(LoggerContext context, TimeZone timeZone) {
         final EventJsonLayout jsonLayout = new EventJsonLayout(createDropwizardJsonFormatter(),
             createTimestampFormatter(timeZone), createThrowableProxyConverter(context), includes, getCustomFieldNames(),
-            getAdditionalFields(), includesMdcKeys, flattenMdc);
+            getAdditionalFields(), includesMdcKeys, flattenMdc, includesKeyValueKeys, flattenKeyValuePairs);
         jsonLayout.setContext(context);
         return jsonLayout;
     }
